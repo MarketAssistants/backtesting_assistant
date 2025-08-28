@@ -2,11 +2,11 @@ import numpy as np
 
 def get_daily_prc_chg(self,st,en,mode):
     
-    lenn =en-st
+    lenn =en-st +1
     daily_prcchg_stock = np.full(lenn,-999,dtype=float)
 
     first_idx = max(self.first_day,st) - st
-    for day in range(max(self.first_day,st)+1,en+1):
+    for day in range(max(self.first_day,st),en+1):
         if mode == "highhigh":
             if any(np.isnan(price) for price in [self.data_high[day],self.data_high[day-1]]):
                 first_idx +=1
@@ -18,6 +18,13 @@ def get_daily_prc_chg(self,st,en,mode):
                 first_idx +=1
                 continue
             daily_prcchg_stock[first_idx] = (round(100*(self.data_low[day]-self.data_low[day-1])/self.data_low[day-1],2))
+
+        if mode == "closeopen":
+            if any(np.isnan(price) for price in [self.data_high[day],self.data_high[day-1]]):
+                first_idx +=1
+                continue
+            daily_prcchg_stock[first_idx] = (round(100*(self.data_open[day]-self.data_close[day-1])/self.data_close[day-1],2))
+        
         first_idx +=1
     # print(daily_prcchg_stock)
     return daily_prcchg_stock
@@ -76,3 +83,17 @@ def get_daily_iceberg_powers(self,st,en,mode):
         first_idx +=1
     # print(daily_prcchg_stock)
     return daily_prcchg_stock
+
+
+def get_spx_major_mas_relative_location(self,st,en): 
+
+    results = {}
+
+
+    for day in range(st,en+1):
+        goback = self.nbr_days_ind -1 - day
+        res = self.strategies_guy.get_major_mas_relative_loc("spy-close","spy-close",goback=goback)
+        date = self.date_secretary.get_date_ind(day)
+
+        results[date] = res
+    return results

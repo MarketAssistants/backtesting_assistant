@@ -5,7 +5,7 @@ decimal_dtype = np.dtype(Decimal)
 SPY_IDX = 1
 
 class Backtesting_Assistant:     
-
+    
     def __init__(self,reports,nbr_days, tickers_info,
                  date_secretary, strategies_guy,support_resistance_guy,graphing_guy,
                  ind_data_open, ind_data_close, ind_data_high, ind_data_low, ind_data_volume):
@@ -25,10 +25,12 @@ class Backtesting_Assistant:
         self.strategies_guy = strategies_guy
         self.support_resistance_guy = support_resistance_guy
         self.graphing_guy = graphing_guy
+
+        self.nbr_days_ind = date_secretary.nbr_days_ind
         
 
     from rally import rally_backtest,rally_graph
-    from getting_data import get_daily_prc_chg,get_daily_10dayMA_volume_prcchg,get_daily_iceberg_powers
+    from getting_data import get_daily_prc_chg,get_daily_10dayMA_volume_prcchg,get_daily_iceberg_powers,get_spx_major_mas_relative_location
 
     def change_reports(self,new_reports): 
         self.reports = new_reports
@@ -80,6 +82,12 @@ class Backtesting_Assistant:
 
                 if report[0] == "volmaprcchg": 
                     results = self.get_daily_10dayMA_volume_prcchg(report[1],report[2])
+
+                if report[0] == "dailyprcchgcloseopen": 
+                    results = self.get_daily_prc_chg(report[1],report[2],"closeopen")
+
+                # if report[0] == "spxmaslocation":
+                #     results = self.get_spx_major_mas_relative_location(report[1],report[2])
 
                 reports[report[0]] = results
                         #this section for new way of passing report list: name,paramet1,parameter2...as necessary

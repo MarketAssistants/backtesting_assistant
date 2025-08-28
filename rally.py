@@ -1,6 +1,6 @@
 import numpy as np
 from backtesting_utils import payloadize
-
+from datetime import datetime
 
 
 def averaging_over (list, over_nbr_days): 
@@ -190,7 +190,9 @@ def rally_graph(self):
     sell_participation_spy = []
     buy_iceberg_spy  = []
     sell_iceberg_spy  = []
+    alphas = []
     for date in dates:
+        print("working on date: ", date)
         day = self.date_secretary.get_date_index(date)
         if day == -1:
             print("************ no way index was not found for date for stock") 
@@ -202,12 +204,99 @@ def rally_graph(self):
 
             buy_iceberg_stock.append(-10)
             sell_iceberg_stock.append(-10)
+            alphas.append(-10)
         else:    
-            power_buy,power_sell = self.strategies_guy.get_daily_power(prices_stock,"same")
-            buy_participation_stock.append(power_buy/100*self.data_vol[day])
-            sell_participation_stock.append(power_sell/100*self.data_vol[day])
-            buy_iceberg_stock.append(power_buy)
-            sell_iceberg_stock.append(power_sell)
+
+            #find factor, alpha, to multiply by
+            alpha = 1
+            ma_everyday= 0
+            ma_sameday = 0
+
+                #######################################################################
+            #check for volume 
+            last_vol = self.data_vol[day]
+            # must double of average of last 3 months
+            last_3months_vol_avg = 0 
+            for dayp in range(1,61): 
+                vol_i = self.data_vol[day-1*dayp]
+                if np.isnan(vol_i): 
+                    continue
+                last_3months_vol_avg += vol_i
+            ma_everyday = last_3months_vol_avg/60
+
+            # print(ma_everyday)
+            # print("got here")
+            if ma_everyday == 0: 
+                buy_participation_stock.append(-10)
+                sell_participation_stock.append(-10)
+
+                buy_iceberg_stock.append(-10)
+                sell_iceberg_stock.append(-10)
+                alphas.append(-10)
+            else: 
+                # must be double of last 10 same-weekday occurences average of volune
+                last_weekday_obj = datetime.strptime(date,"%Y-%m-%d") 
+                last_weekday = last_weekday_obj.weekday()
+
+                occurences, day_idx = 0, (day-1)
+                vol_sum = 0
+                while (occurences <12 and day_idx>=0): 
+                    date_i = self.date_secretary.get_date(day_idx)
+                    weekday_obj = datetime.strptime(date_i,"%Y-%m-%d") 
+                    weekday = weekday_obj.weekday()
+                    
+                    if weekday == last_weekday: 
+                        vol_i = self.data_vol[day_idx]
+                        if np.isnan(vol_i): 
+                            day_idx -=1
+                            continue
+                        vol_sum += vol_i
+                        occurences +=1 
+                    day_idx -=1
+
+                    # print("still in loop..")
+
+                print("out of loop checking for occurences ")
+                if occurences < 3: 
+                    buy_participation_stock.append(-10)
+                    sell_participation_stock.append(-10)
+
+                    buy_iceberg_stock.append(-10)
+                    sell_iceberg_stock.append(-10)
+                    alphas.append(-10)
+                else: 
+                    ma_sameday = vol_sum / occurences
+
+                    prc_ma_everyday = 100*(last_vol-ma_everyday)/ma_everyday
+                    prc_ma_sameday = 100*(last_vol-ma_sameday)/ma_sameday
+
+                    # print("=== got here...")0...............2222222222233333333333333333333
+                    # print(prc_ma_everyday)
+                    # print(prc_ma_sameday)
+                
+                    if  (prc_ma_everyday>0 and prc_ma_sameday>0): 
+                        alpha = min(1/(prc_ma_everyday+1),1/(prc_ma_sameday+1))
+                    elif (prc_ma_everyday>0 and prc_ma_sameday<0): 
+                        alpha = 1/(prc_ma_everyday+1)
+                    elif (prc_ma_everyday<0 and prc_ma_sameday>0): 
+                        alpha = 1/(prc_ma_sameday+1)
+                    elif (prc_ma_everyday<0 and prc_ma_sameday<0): 
+                        alpha = min(-1*prc_ma_everyday+1,-1*prc_ma_sameday+1)
+                    else: 
+                        print("no case was selected, impossible!")
+                        print(prc_ma_everyday)
+                        print(prc_ma_sameday)
+                        exit(0)
+
+                    area_pos,area_neg,buying_pow = self.strategies_guy.get_daily_powers_prcchg(prices_stock[1:])
+                    print("area is: ", (area_pos+area_neg) )
+                    if (area_pos+area_neg) < 1: 
+                        print("=================== total area less than one")
+                    buy_participation_stock.append(area_pos/self.data_vol[day])
+                    sell_participation_stock.append(alpha*(area_neg+area_pos)/(self.data_vol[day]*self.data_vol[day]))
+                    buy_iceberg_stock.append(buying_pow)
+                    sell_iceberg_stock.append(100-buying_pow)
+                    alphas.append(alpha)
 
         day = self.date_secretary.get_date_index_ind(date)
         if day == -1:
@@ -220,17 +309,16 @@ def rally_graph(self):
         if any(np.isnan(price) for price in prices_spy): 
             buy_participation_spy.append(-10)
             sell_participation_spy.append(-10)
-
             buy_iceberg_spy.append(-10)
             sell_iceberg_spy.append(-10)
         else:    
-            power_buy_spy,power_sell_spy = self.strategies_guy.get_daily_power(prices_spy,"same")
-            buy_participation_spy.append(power_buy_spy/100*self.spy_vol[day])
-            sell_participation_spy.append(power_sell_spy/100*self.spy_vol[day])
+            area_pos_spy,area_neg_spy,buying_pow_spy = self.strategies_guy.get_daily_powers_prcchg(prices_spy[1:])
+            buy_participation_spy.append(area_pos_spy/self.spy_vol[day])
+            sell_participation_spy.append(area_neg_spy/self.spy_vol[day])
 
 
-            buy_iceberg_spy.append(power_buy_spy)
-            sell_iceberg_spy.append(power_sell_spy)
+            buy_iceberg_spy.append(buying_pow_spy)
+            sell_iceberg_spy.append(100-buying_pow_spy)
             # if date == '2023-10-27': 
                 # print(prices_spy)
                 # print("power_buy is: ", power_buy_spy)
@@ -244,6 +332,7 @@ def rally_graph(self):
 
     #this one is to store daily percent changes
     daily_prcchg_stock = []
+    highlow_prcchg_stock = []
     daily_prcchg_spy = []
 
     for idx,date in enumerate(dates):
@@ -252,10 +341,13 @@ def rally_graph(self):
         if day == -1:
             print("************ no way index was not found for date for stock") 
             exit(0)
+
+
+
         #STOCK
         morning_rush_stock.append(round(100*(self.data_open[day]-self.data_close[day-1])/self.data_close[day-1],2))
         daily_prcchg_stock.append(round(100*(self.data_close[day]-self.data_open[day])/self.data_open[day],2))
-
+        highlow_prcchg_stock.append(round(100*(self.data_high[day]-self.data_low[day])/self.data_low[day],2))
         #SPY
         day = self.date_secretary.get_date_index_ind(date)
         prev_date = self.date_secretary.get_date_ind(day-1)
@@ -357,14 +449,22 @@ def rally_graph(self):
     #                                         [" "," "," "," "])
 
 
+    self.graphing_guy.plot_xy_same([dates[st:en],dates[st:en],dates[st:en],dates[st:en],dates[st:en]],
+                                             [daily_prcchg_stock[st:en],highlow_prcchg_stock[st:en],[i*(100000*100000) for i in sell_participation_stock[st:en]],[1/10*i for i in sell_iceberg_stock[st:en]],alphas[st:en]],
+                                             ["1","2","3","4","5"],
+                                             ["open-close prc chg","high-low prc chg","sell participation","sell_iceberg_stock","alphas"],
+     
+                                             ["open-close prc chg","high-low prc chg","sell participation","sell_iceberg_stock","alphas"])
+
+
     # print(len(dates[st:en]))
     # print(len(stocks_defying_spy[st:en]))
     # print(len(morning_rush_spy[st:en]))
     # print(len(morning_rush_stock[st:en]))
 
-    self.graphing_guy.plot_xy_seperate([dates[st:en],dates[st:en],dates[st:en]],
-                                             [iceberg_formula_stock[st:en],iceberg_formula_spy[st:en],stocks_defying_spy[st:en] ],
-                                             [ "icebergformulastock","icebergformulaspy","stocks_defying_spy"],
-                                             [" "," "," "],
-                                             [" "," "," "])
+    # self.graphing_guy.plot_xy_seperate([dates[st:en],dates[st:en],dates[st:en]],
+    #                                          [iceberg_formula_stock[st:en],iceberg_formula_spy[st:en],stocks_defying_spy[st:en] ],
+    #                                          [ "icebergformulastock","icebergformulaspy","stocks_defying_spy"],
+    #                                          [" "," "," "],
+    #                                          [" "," "," "])
             
